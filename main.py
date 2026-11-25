@@ -43,11 +43,21 @@ def write_entry():
         return 1
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_bytes(ENTRY.encode("utf-8"))
+    # Round-trip check: what landed on disk must be exactly the entry.
+    written = OUTPUT.read_bytes()
+    if written != ENTRY.encode("utf-8"):
+        print("invalid entry: wrote %d bytes, expected %d"
+              % (len(written), len(ENTRY.encode("utf-8"))), file=sys.stderr)
+        return 1
+    print("wrote %d characters (%d bytes) to %s"
+          % (len(ENTRY), len(ENTRY.encode("utf-8")), OUTPUT))
     return 0
 
 
 def self_test():
     """Check the gate validator against good and bad inputs."""
+    import tempfile
+
     cases = [
         (ENTRY, None),
         ("x", None),
@@ -70,10 +80,17 @@ def self_test():
         elif want is not None and error is None:
             print("FAIL: %r should fail (%s), passed" % (text, want))
             failures += 1
+    # Round-trip: the file main.py writes must decode back to the entry.
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = Path(tmp) / "entry.txt"
+        probe.write_bytes(ENTRY.encode("utf-8"))
+        if probe.read_text(encoding="utf-8") != ENTRY:
+            print("FAIL: round-trip readback differs from the entry")
+            failures += 1
     if failures:
         print("%d self-test failure(s)" % failures, file=sys.stderr)
         return 1
-    print("self-test passed: %d cases" % len(cases))
+    print("self-test passed: %d cases" % (len(cases) + 1))
     return 0
 
 
